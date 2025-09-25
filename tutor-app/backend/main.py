@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import text
 from sqlalchemy.orm import Session
 from database import Base, engine, SessionLocal
 from models import Usuario
@@ -11,7 +10,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # luego podemos restringirlo
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,14 +19,13 @@ app.add_middleware(
 # Ruta de prueba
 @app.get("/")
 def read_root():
-    return {"message": "Hola, este es mi backend con FastAPI 🚀"}
+    return {"message": "Hola, este es mi backend con FastAPI "}
 
 # Otra ruta de ejemplo
 @app.get("/saludo/{nombre}")
 def read_item(nombre: str):
-    return {"mensaje": f"Hola {nombre}, bienvenido a Mi Tutor App 👋"}
+    return {"mensaje": f"Hola {nombre}, bienvenido a Mi TutorIA "}
 
-from database import engine, Base
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
