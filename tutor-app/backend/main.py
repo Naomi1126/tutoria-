@@ -1,9 +1,13 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from database import Base, engine, SessionLocal
-from models import Usuario
+import models
 
+from fastapi.security import OAuth2PasswordBearer
+from security import decode_token
+from models import User
 
 # Creamos la app
 app = FastAPI()
@@ -27,8 +31,6 @@ def read_item(nombre: str):
     return {"mensaje": f"Hola {nombre}, bienvenido a Mi TutorIA "}
 
 
-# Crear las tablas en la base de datos
-Base.metadata.create_all(bind=engine)
 
 # Dependencia: obtener sesión de la BD
 def get_db():
@@ -38,14 +40,41 @@ def get_db():
     finally:
         db.close()
 
-@app.post("/usuarios/")
-def crear_usuario(nombre: str, correo: str, db: Session = Depends(get_db)):
-    usuario = Usuario(nombre=nombre, correo=correo)
-    db.add(usuario)
-    db.commit()
-    db.refresh(usuario)
-    return usuario
+@app.get("/users/")
+def list_users(db: Session = Depends(get_db)):
+    data = db.query(User).all()
+    return [{"id": u.id, "email": u.email, "full_name": u.full_name} for u in data]
 
-@app.get("/usuarios/")
-def listar_usuarios(db: Session = Depends(get_db)):
-    return db.query(Usuario).all()
+
+# ----------- ENDPOINT DE PRUEBA DE BASE DE DATOS -----------
+@app.get("/db-check")
+def db_check(db: Session = Depends(get_db)):
+    # SELECT 1 para comprobar conexión
+    result = db.execute(text("SELECT 1")).scalar()
+    ok = (result == 1)
+    return {"status": "ok" if ok else "fail", "db": "connected" if ok else "error"}
+# ------------------------------------------------------------
+
+# ----------- Obtener el ususario -----------
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    data = decode_token(token)
+    if not data or "sub" not in data:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+    email = data["sub"]
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+    return user
+
+from schemas import UserRead
+
+@app.get("/auth/me", response_model=UserRead)
+def read_me(current_user = Depends(get_current_user)):
+    return current_user
+
+# routers 
+from routers import auth
+app.include_router(auth.router)
